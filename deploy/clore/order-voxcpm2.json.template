@@ -8,7 +8,6 @@
     "22": "tcp"
   },
   "env": {
-    "ENGINE_MODE": "real",
     "MODEL_PATH": "/models/VoxCPM2",
     "PRELOAD_MODEL": "0",
     "PORT": "8011",

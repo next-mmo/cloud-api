@@ -96,13 +96,22 @@ class GoogleDriveStorage:
         from google.oauth2.credentials import Credentials
         from googleapiclient.discovery import build
 
+        from .rclone_drive import DRIVE_FILE_SCOPE, resolve_drive_oauth_client
+
+        refresh_token = (os.getenv("GOOGLE_DRIVE_REFRESH_TOKEN") or "").strip()
+        if not refresh_token:
+            raise RuntimeError(
+                "GOOGLE_DRIVE_REFRESH_TOKEN is missing. Connect Google Drive from the Secrets page "
+                "(easy rclone-style login) or paste a refresh token."
+            )
+        client_id, client_secret = resolve_drive_oauth_client()
         credentials = Credentials(
             token=None,
-            refresh_token=os.environ["GOOGLE_DRIVE_REFRESH_TOKEN"],
+            refresh_token=refresh_token,
             token_uri="https://oauth2.googleapis.com/token",
-            client_id=os.environ["GOOGLE_DRIVE_CLIENT_ID"],
-            client_secret=os.environ["GOOGLE_DRIVE_CLIENT_SECRET"],
-            scopes=["https://www.googleapis.com/auth/drive.file"],
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=[DRIVE_FILE_SCOPE],
         )
         self.service = build("drive", "v3", credentials=credentials, cache_discovery=False)
         self.folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID") or None

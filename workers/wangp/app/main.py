@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 from pathlib import Path
@@ -9,7 +8,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 
-from worker_base import fetch_uri, make_mock_video, save_output, unwrap_job
+from worker_base import fetch_uri, save_output, unwrap_job
 
 app = FastAPI(title="WanGP Worker")
 _session = None
@@ -34,12 +33,12 @@ def get_session():
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "engine": os.getenv("ENGINE_MODE", "mock")}
+    return {"status": "ok", "engine": "real"}
 
 
 @app.get("/ready")
 def ready() -> dict[str, str]:
-    if os.getenv("ENGINE_MODE", "mock") == "real" and os.getenv("PRELOAD_MODEL", "0") == "1":
+    if os.getenv("PRELOAD_MODEL", "0") == "1":
         get_session()
     return {"status": "ready"}
 
@@ -53,12 +52,12 @@ def process(body: dict[str, Any]) -> dict[str, Any]:
     if not prompt:
         raise HTTPException(400, "prompt is required")
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        work = Path(temp_dir)
-        start_image = fetch_uri(job.get("start_image_uri"), storage_provider, work / "start.png")
-        end_image = fetch_uri(job.get("end_image_uri"), storage_provider, work / "end.png")
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            work = Path(temp_dir)
+            start_image = fetch_uri(job.get("start_image_uri"), storage_provider, work / "start.png")
+            end_image = fetch_uri(job.get("end_image_uri"), storage_provider, work / "end.png")
 
-        if os.getenv("ENGINE_MODE", "mock") == "real":
             settings: dict[str, Any] = {
                 "model_type": job.get("model_type", "ltx2_22B_distilled"),
                 "prompt": prompt,
@@ -79,9 +78,10 @@ def process(body: dict[str, Any]) -> dict[str, Any]:
                 errors = [getattr(item, "message", str(item)) for item in result.errors]
                 raise RuntimeError("WanGP generation failed: " + "; ".join(errors))
             output = Path(result.generated_files[0])
-        else:
-            output = work / f"{job_id}.mp4"
-            make_mock_video(output)
 
-        stored = save_output(output, storage_provider, f"outputs/video/{job_id}{output.suffix or '.mp4'}")
-        return {"job_id": job_id, "status": "succeeded", "kind": "video", **stored}
+            stored = save_output(output, storage_provider, f"outputs/video/{job_id}{output.suffix or '.mp4'}")
+            return {"job_id": job_id, "status": "succeeded", "kind": "video", **stored}
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 - surface inference failures to the client
+        raise HTTPException(500, f"{type(exc).__name__}: {exc}") from exc

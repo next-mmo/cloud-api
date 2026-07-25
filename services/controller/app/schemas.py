@@ -5,12 +5,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, HttpUrl
 
-ComputeProvider = Literal["mock", "local", "salad", "runpod", "custom"]
+ComputeProvider = Literal["local", "salad", "runpod", "vast", "clore", "custom"]
 StorageProvider = Literal["local", "r2", "google_drive"]
 
 
 class ProviderSelection(BaseModel):
-    compute_provider: ComputeProvider = "mock"
+    compute_provider: ComputeProvider = "vast"
     storage_provider: StorageProvider = "local"
     custom_worker_url: str | None = None
 
@@ -66,3 +66,20 @@ class UploadResponse(BaseModel):
 class CapabilityResponse(BaseModel):
     compute: dict[str, bool]
     storage: dict[str, bool]
+    missing: dict[str, list[str]] = Field(default_factory=dict)
+
+
+class ProviderCheckRequest(BaseModel):
+    compute_provider: ComputeProvider = "custom"
+    storage_provider: StorageProvider = "local"
+    custom_worker_url: str | None = None
+    probe_worker: bool = True
+
+
+class SettingsUpdateRequest(BaseModel):
+    values: dict[str, str | None] = Field(default_factory=dict)
+
+
+class SettingsEnvUploadRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=200_000)
+    replace: bool = False

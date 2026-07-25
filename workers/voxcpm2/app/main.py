@@ -11,7 +11,7 @@ from typing import Any
 import soundfile as sf
 from fastapi import FastAPI, HTTPException
 
-from worker_base import fetch_uri, make_mock_wav, save_output, unwrap_job
+from worker_base import fetch_uri, save_output, unwrap_job
 
 app = FastAPI(title="VoxCPM2 Worker")
 _model = None
@@ -34,12 +34,12 @@ def get_model():
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "engine": os.getenv("ENGINE_MODE", "mock")}
+    return {"status": "ok", "engine": "real"}
 
 
 @app.get("/ready")
 def ready() -> dict[str, str]:
-    if os.getenv("ENGINE_MODE", "mock") == "real" and os.getenv("PRELOAD_MODEL", "1") == "1":
+    if os.getenv("PRELOAD_MODEL", "1") == "1":
         get_model()
     return {"status": "ready"}
 
@@ -60,34 +60,31 @@ def process(body: dict[str, Any]) -> dict[str, Any]:
             prompt_audio = fetch_uri(job.get("prompt_audio_uri"), storage_provider, work / "prompt.wav")
             output = work / f"{job_id}.wav"
 
-            if os.getenv("ENGINE_MODE", "mock") == "real":
-                model = get_model()
-                designed_text = text
-                if job.get("voice_description"):
-                    designed_text = f"({job['voice_description']}){text}"
-                kwargs: dict[str, Any] = {
-                    "text": designed_text,
-                    "cfg_value": float(job.get("cfg_value", 2.0)),
-                    "inference_timesteps": int(job.get("inference_timesteps", 10)),
-                }
-                if job.get("seed") is not None:
-                    kwargs["seed"] = int(job["seed"])
-                if reference:
-                    kwargs["reference_wav_path"] = str(reference)
-                if prompt_audio:
-                    kwargs["prompt_wav_path"] = str(prompt_audio)
-                    kwargs["prompt_text"] = str(job.get("prompt_text") or "")
-                # VoxCPM versions differ on accepted generate() kwargs (e.g. seed).
-                params = inspect.signature(model.generate).parameters
-                if any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in params.values()):
-                    filtered = kwargs
-                else:
-                    filtered = {key: value for key, value in kwargs.items() if key in params}
-                wav = model.generate(**filtered)
-                sample_rate = getattr(getattr(model, "tts_model", None), "sample_rate", None) or 24000
-                sf.write(output, wav, int(sample_rate))
+            model = get_model()
+            designed_text = text
+            if job.get("voice_description"):
+                designed_text = f"({job['voice_description']}){text}"
+            kwargs: dict[str, Any] = {
+                "text": designed_text,
+                "cfg_value": float(job.get("cfg_value", 2.0)),
+                "inference_timesteps": int(job.get("inference_timesteps", 10)),
+            }
+            if job.get("seed") is not None:
+                kwargs["seed"] = int(job["seed"])
+            if reference:
+                kwargs["reference_wav_path"] = str(reference)
+            if prompt_audio:
+                kwargs["prompt_wav_path"] = str(prompt_audio)
+                kwargs["prompt_text"] = str(job.get("prompt_text") or "")
+            # VoxCPM versions differ on accepted generate() kwargs (e.g. seed).
+            params = inspect.signature(model.generate).parameters
+            if any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in params.values()):
+                filtered = kwargs
             else:
-                make_mock_wav(output)
+                filtered = {key: value for key, value in kwargs.items() if key in params}
+            wav = model.generate(**filtered)
+            sample_rate = getattr(getattr(model, "tts_model", None), "sample_rate", None) or 24000
+            sf.write(output, wav, int(sample_rate))
 
             if storage_provider.lower() in {"inline", "base64"}:
                 audio_bytes = output.read_bytes()

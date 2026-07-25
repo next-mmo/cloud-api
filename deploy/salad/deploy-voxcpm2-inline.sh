@@ -106,7 +106,6 @@ config = {
             "gpu_classes": [os.environ["SALAD_GPU_CLASS"]],
         },
         "environment_variables": {
-            "ENGINE_MODE": "real",
             "MODEL_PATH": "/models/VoxCPM2",
             "PRELOAD_MODEL": "1",
             "LOAD_DENOISER": "false",

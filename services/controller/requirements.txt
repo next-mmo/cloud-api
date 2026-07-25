@@ -5,4 +5,5 @@ pydantic>=2.10,<3
 python-multipart>=0.0.20,<1
 sqlalchemy>=2.0,<3
 svix>=1.60,<2
+cryptography>=43,<47
 -e /opt/python_common

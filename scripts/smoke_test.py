@@ -3,7 +3,12 @@ import py_compile
 import sys
 
 root = Path(__file__).resolve().parents[1]
-python_files = list(root.rglob("*.py"))
+skip_parts = {".venv", "venv", "node_modules", "__pycache__", ".git"}
+python_files = [
+    path
+    for path in root.rglob("*.py")
+    if not any(part in skip_parts for part in path.parts)
+]
 for file in python_files:
     py_compile.compile(str(file), doraise=True)
 print(f"Compiled {len(python_files)} Python files successfully.")

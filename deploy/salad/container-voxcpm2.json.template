@@ -9,10 +9,11 @@
     "resources": {
       "cpu": 4,
       "memory": 16384,
-      "gpu_classes": ["REPLACE_WITH_GPU_CLASS_UUID"]
+      "gpu_classes": [
+        "REPLACE_WITH_GPU_CLASS_UUID"
+      ]
     },
     "environment_variables": {
-      "ENGINE_MODE": "real",
       "MODEL_PATH": "/models/VoxCPM2",
       "PRELOAD_MODEL": "0",
       "PORT": "8011",
@@ -27,9 +28,15 @@
     }
   },
   "replicas": 0,
-  "country_codes": ["us", "ca"],
+  "country_codes": [
+    "us",
+    "ca"
+  ],
   "startup_probe": {
-    "http": {"path": "/health", "port": 8011},
+    "http": {
+      "path": "/health",
+      "port": 8011
+    },
     "initial_delay_seconds": 15,
     "period_seconds": 10,
     "timeout_seconds": 5,
@@ -37,7 +44,10 @@
     "success_threshold": 1
   },
   "readiness_probe": {
-    "http": {"path": "/ready", "port": 8011},
+    "http": {
+      "path": "/ready",
+      "port": 8011
+    },
     "initial_delay_seconds": 5,
     "period_seconds": 15,
     "timeout_seconds": 10,

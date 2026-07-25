@@ -33,6 +33,18 @@ class JobRecord(Base):
     )
 
 
+class VaultRecord(Base):
+    __tablename__ = "settings_vault"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    ciphertext: Mapped[str] = mapped_column(String(200_000))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
 connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
 engine = create_engine(settings.database_url, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)

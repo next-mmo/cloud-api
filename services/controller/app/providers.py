@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -21,41 +20,68 @@ class ProviderError(RuntimeError):
     pass
 
 
-class MockProvider:
-    async def submit(self, kind: str, job_id: str, payload: dict[str, Any]) -> Submission:
-        await asyncio.sleep(0.05)
-        return Submission(
-            provider_job_id=f"mock-{job_id}",
-            status="succeeded",
-            result={
-                "job_id": job_id,
-                "status": "succeeded",
-                "message": f"Mock {kind} job completed. Switch to Local, Salad, RunPod, or Custom for GPU inference.",
-                "output_uri": None,
-                "public_url": None,
-            },
-        )
-
-    async def poll(self, kind: str, provider_job_id: str) -> Submission:
-        return Submission(provider_job_id=provider_job_id, status="succeeded")
-
-
 class DirectHTTPProvider:
     def __init__(self, worker_url: str, token: str = "") -> None:
         self.worker_url = worker_url.rstrip("/")
         self.token = token
 
+    def _materialize_inline_result(self, kind: str, job_id: str, result: dict[str, Any]) -> dict[str, Any]:
+        """Save inline base64 media onto the controller so the web UI can open it."""
+        import base64
+        import tempfile
+        from pathlib import Path
+
+        from nd_gpu_common import StorageFactory
+
+        audio_b64 = result.get("audio_base64")
+        video_b64 = result.get("video_base64")
+        if not audio_b64 and not video_b64:
+            return result
+
+        suffix = ".wav" if audio_b64 else ".mp4"
+        raw = base64.b64decode(audio_b64 or video_b64)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(raw)
+            tmp_path = Path(tmp.name)
+        try:
+            stored = StorageFactory.create("local").upload(
+                tmp_path,
+                f"outputs/{kind}/{job_id}{suffix}",
+            )
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+        cleaned = {
+            key: value
+            for key, value in result.items()
+            if key not in {"audio_base64", "video_base64"}
+        }
+        cleaned.update(
+            {
+                "output_uri": stored.uri,
+                "public_url": stored.public_url,
+                "storage_provider": stored.provider,
+            }
+        )
+        return cleaned
+
     async def submit(self, kind: str, job_id: str, payload: dict[str, Any]) -> Submission:
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
+        worker_payload = dict(payload)
+        # Remote GPU workers cannot serve controller "local" files; return inline media instead.
+        if str(worker_payload.get("storage_provider") or "local").lower() == "local":
+            worker_payload["storage_provider"] = "inline"
         async with httpx.AsyncClient(timeout=None) as client:
             response = await client.post(
                 f"{self.worker_url}/process",
-                json={"job_id": job_id, "kind": kind, **payload},
+                json={"job_id": job_id, "kind": kind, **worker_payload},
                 headers=headers,
             )
         if response.is_error:
             raise ProviderError(f"Worker returned {response.status_code}: {response.text[:800]}")
         result = response.json()
+        if result.get("status", "succeeded") == "succeeded":
+            result = self._materialize_inline_result(kind, job_id, result)
         return Submission(
             provider_job_id=result.get("job_id", job_id),
             status=result.get("status", "succeeded"),
@@ -160,17 +186,23 @@ class RunPodProvider:
 
 def get_provider(name: str, kind: str, custom_url: str | None = None):
     selected = name.lower()
-    if selected == "mock":
-        return MockProvider()
     if selected == "local":
         return DirectHTTPProvider(settings.vox_worker_url if kind == "tts" else settings.wan_worker_url)
     if selected == "salad":
         return SaladProvider()
     if selected == "runpod":
         return RunPodProvider()
-    if selected == "custom":
-        url = custom_url or settings.custom_worker_url
+    if selected in {"custom", "vast", "clore"}:
+        if selected == "vast":
+            url = custom_url or settings.vast_worker_url
+            label = "Vast.ai worker URL (VAST_WORKER_URL)"
+        elif selected == "clore":
+            url = custom_url or settings.clore_worker_url
+            label = "Clore.ai worker URL (CLORE_WORKER_URL)"
+        else:
+            url = custom_url or settings.custom_worker_url
+            label = "Custom worker URL"
         if not url:
-            raise ProviderError("Custom worker URL is missing")
+            raise ProviderError(f"{label} is missing")
         return DirectHTTPProvider(url, settings.custom_worker_token)
     raise ProviderError(f"Unsupported compute provider: {name}")

@@ -16,9 +16,30 @@ from sqlalchemy.orm import Session
 from nd_gpu_common import StorageFactory
 
 from .config import settings
-from .db import JobRecord, get_db, init_db
+from .db import JobRecord, SessionLocal, get_db, init_db
 from .providers import ProviderError, get_provider
-from .schemas import CapabilityResponse, JobResponse, TTSRequest, UploadResponse, VideoRequest
+from .schemas import (
+    CapabilityResponse,
+    JobResponse,
+    ProviderCheckRequest,
+    SettingsEnvUploadRequest,
+    SettingsUpdateRequest,
+    TTSRequest,
+    UploadResponse,
+    VideoRequest,
+)
+from .google_drive_oauth import get_oauth_status, start_oauth
+from .provider_check import capability_snapshot, check_providers
+from .secret_vault import (
+    VaultError,
+    apply_vault_to_environ,
+    load_vault,
+    merge_updates,
+    parse_env_text,
+    public_status,
+    save_vault,
+)
+from .settings_catalog import schema_payload
 
 app = FastAPI(title="WanGP + VoxCPM2 Cloud Controller", version="0.1.0")
 app.add_middleware(
@@ -37,6 +58,15 @@ app.mount("/files", StaticFiles(directory=str(local_storage_root)), name="files"
 @app.on_event("startup")
 def startup() -> None:
     init_db()
+    db = SessionLocal()
+    try:
+        try:
+            apply_vault_to_environ(load_vault(db))
+        except VaultError:
+            # Host key missing or vault unreadable — keep process env only.
+            apply_vault_to_environ({})
+    finally:
+        db.close()
 
 
 @app.get("/health")
@@ -46,20 +76,80 @@ def health() -> dict[str, str]:
 
 @app.get("/api/capabilities", response_model=CapabilityResponse)
 def capabilities() -> CapabilityResponse:
-    return CapabilityResponse(
-        compute={
-            "mock": True,
-            "local": True,
-            "salad": bool(settings.salad_api_key and settings.salad_organization and settings.salad_project),
-            "runpod": bool(settings.runpod_api_key),
-            "custom": bool(settings.custom_worker_url),
-        },
-        storage={
-            "local": True,
-            "r2": bool(os.getenv("S3_BUCKET") and os.getenv("S3_ACCESS_KEY_ID")),
-            "google_drive": bool(os.getenv("GOOGLE_DRIVE_REFRESH_TOKEN")),
-        },
+    snap = capability_snapshot()
+    return CapabilityResponse(compute=snap["compute"], storage=snap["storage"], missing=snap["missing"])
+
+
+@app.post("/api/providers/check")
+async def providers_check(body: ProviderCheckRequest) -> dict[str, Any]:
+    return await check_providers(
+        body.compute_provider,
+        body.storage_provider,
+        body.custom_worker_url,
+        probe_worker=body.probe_worker,
     )
+
+
+@app.get("/api/settings/schema")
+def settings_schema() -> dict[str, Any]:
+    return schema_payload()
+
+
+@app.get("/api/settings")
+def get_settings(db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        values = load_vault(db)
+    except VaultError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return public_status(values)
+
+
+@app.put("/api/settings")
+def put_settings(body: SettingsUpdateRequest, db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        current = load_vault(db)
+        merged = merge_updates(current, body.values)
+        saved = save_vault(db, merged)
+    except VaultError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return public_status(saved)
+
+
+@app.post("/api/settings/env")
+def upload_settings_env(body: SettingsEnvUploadRequest, db: Session = Depends(get_db)) -> dict[str, Any]:
+    parsed = parse_env_text(body.content)
+    if not parsed:
+        raise HTTPException(400, "No recognized provider keys found in .env content")
+    try:
+        current = {} if body.replace else load_vault(db)
+        merged = {**current, **parsed}
+        saved = save_vault(db, merged)
+    except VaultError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return public_status(saved)
+
+
+@app.delete("/api/settings")
+def clear_settings(db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        saved = save_vault(db, {})
+    except VaultError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return public_status(saved)
+
+
+@app.post("/api/settings/google-drive/connect")
+def google_drive_connect() -> dict[str, Any]:
+    """Start rclone-style Google Drive OAuth (no Cloud Console app required)."""
+    try:
+        return start_oauth()
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/api/settings/google-drive/connect")
+def google_drive_connect_status() -> dict[str, Any]:
+    return get_oauth_status()
 
 
 def create_job(db: Session, kind: str, payload: dict[str, Any]) -> JobRecord:

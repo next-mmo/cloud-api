@@ -9,10 +9,11 @@
     "resources": {
       "cpu": 8,
       "memory": 32768,
-      "gpu_classes": ["REPLACE_WITH_GPU_CLASS_UUID"]
+      "gpu_classes": [
+        "REPLACE_WITH_GPU_CLASS_UUID"
+      ]
     },
     "environment_variables": {
-      "ENGINE_MODE": "real",
       "WANGP_ROOT": "/opt/Wan2GP",
       "WANGP_OUTPUT_DIR": "/outputs",
       "WANGP_CLI_ARGS": "--attention,sdpa,--profile,4",
@@ -29,9 +30,15 @@
     }
   },
   "replicas": 0,
-  "country_codes": ["us", "ca"],
+  "country_codes": [
+    "us",
+    "ca"
+  ],
   "startup_probe": {
-    "http": {"path": "/health", "port": 8012},
+    "http": {
+      "path": "/health",
+      "port": 8012
+    },
     "initial_delay_seconds": 30,
     "period_seconds": 15,
     "timeout_seconds": 5,
@@ -39,7 +46,10 @@
     "success_threshold": 1
   },
   "readiness_probe": {
-    "http": {"path": "/ready", "port": 8012},
+    "http": {
+      "path": "/ready",
+      "port": 8012
+    },
     "initial_delay_seconds": 5,
     "period_seconds": 20,
     "timeout_seconds": 10,

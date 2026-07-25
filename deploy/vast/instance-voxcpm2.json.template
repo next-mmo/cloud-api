@@ -5,7 +5,6 @@
   "runtype": "ssh_direct",
   "onstart": "sed -i '/\"seed\": int(job.get(\"seed\", 42)),/d' /app/app/main.py && /app/start.sh",
   "env": {
-    "ENGINE_MODE": "real",
     "MODEL_PATH": "/models/VoxCPM2",
     "PRELOAD_MODEL": "0",
     "PORT": "8011",

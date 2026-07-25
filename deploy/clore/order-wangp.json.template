@@ -8,7 +8,6 @@
     "22": "tcp"
   },
   "env": {
-    "ENGINE_MODE": "real",
     "WANGP_ROOT": "/opt/Wan2GP",
     "WANGP_OUTPUT_DIR": "/outputs",
     "WANGP_CLI_ARGS": "--attention,sdpa,--profile,4",

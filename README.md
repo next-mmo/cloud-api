@@ -7,8 +7,8 @@ A runnable starter for connecting a local or hosted React web app to:
 - **Local FastAPI**, **SaladCloud Job Queues**, **RunPod Serverless**, **[Clore.ai](https://clore.ai/) / [Vast.ai](https://vast.ai/) GPU rentals**, or a custom FastAPI worker
 - **Google Drive**, **Cloudflare R2 / S3-compatible storage**, or local disk
 
-The included Docker Compose setup runs immediately in **mock mode**. Real GPU
-inference is enabled with the separate `.gpu` Dockerfiles.
+Docker Compose runs the **web UI + controller** on CPU. Point compute at a real
+GPU worker (local `.gpu` image, Salad, RunPod, Clore, or Vast).
 
 > This repository does not redistribute WanGP, VoxCPM2, or their model weights.
 > Review and follow each upstream project's license and terms before production
@@ -29,36 +29,36 @@ deploy/vast/              Vast.ai GPU cloud instance scripts
 docs/                     Architecture notes
 ```
 
-## 1. Run the complete local demo
+## 1. Run the local web + controller
 
-Requirements: Docker Desktop with Docker Compose.
+Requirements: Docker Desktop with Docker Compose (or run controller/web locally).
 
 ```bash
 cp .env.example .env
+# set SETTINGS_ENCRYPTION_KEY (required for the Secrets UI vault)
 docker compose up --build
 ```
 
 Open:
 
 - Web UI: `http://localhost:5173`
+- Secrets UI: `http://localhost:5173/settings`
 - Controller docs: `http://localhost:8000/docs`
-- Vox worker docs: `http://localhost:8011/docs`
-- WanGP worker docs: `http://localhost:8012/docs`
 
-Choose **Mock demo** and **Local disk** in Provider Settings. The UI saves the
-selection in browser `localStorage`.
+In Provider Settings choose a real compute provider (Custom / Local / Salad /
+RunPod) and **Local disk** (or Drive/R2). Selections are saved in browser
+`localStorage`. Put API keys in **Secrets** (`/settings`).
 
-## 2. Provider selection and saved settings
+## 2. Provider selection and encrypted secrets
 
 The web UI lets each user choose and save:
 
 ### Compute provider
 
-- `mock`: immediate integration demo
+- `custom`: calls a user-selected FastAPI worker URL (Clore.ai / Vast.ai rentals)
 - `local`: direct calls to `VOX_WORKER_URL` and `WAN_WORKER_URL`
 - `salad`: submits to two Salad Job Queues
 - `runpod`: submits to configured RunPod Serverless endpoints
-- `custom`: calls a user-selected FastAPI worker URL (also used for Clore.ai / Vast.ai rentals)
 
 ### Storage provider
 
@@ -69,11 +69,36 @@ The web UI lets each user choose and save:
 Only provider names and the optional custom URL are saved in the browser. Never
 put Salad, RunPod, Clore, Vast, Google, or S3 credentials in Vite environment variables.
 
+### Encrypted Secrets page (`/settings`)
+
+End users can upload a `.env` or fill dynamic fields (predefined from the starter
+catalog, matching `.env.example` provider keys). Each provider group includes
+links to the console / docs / API key pages.
+
+The controller stores values in an encrypted SQLite vault using
+`SETTINGS_ENCRYPTION_KEY` on the host. Secret fields never return plaintext over
+the API — only a configured flag and a short `••••last4` hint. Non-secret values
+(like queue names or public worker URLs) may be shown again for editing.
+
 ## 3. Use your Google Drive storage
 
-Google Drive support uses an OAuth refresh token. Create a Google Cloud OAuth
-client, enable Google Drive API, obtain a refresh token with the
-`drive.file` scope, and set:
+### Easy path (recommended — same as rclone)
+
+No Google Cloud Console app required.
+
+1. Open `http://localhost:5173/settings`
+2. Expand **Google Drive** → **Connect with Google**
+3. Click **Allow** in the browser window
+4. On the studio page, set storage to **Google Drive**
+
+This uses rclone’s built-in Google OAuth client (leave client ID / secret blank),
+the same way `rclone config` works when you press Enter on those fields.
+
+The refresh token is encrypted in the controller vault. The controller must run
+on the same machine as your browser so the OAuth callback on `127.0.0.1:53682`
+can finish.
+
+### Advanced path (your own OAuth app)
 
 ```env
 GOOGLE_DRIVE_CLIENT_ID=...
@@ -83,18 +108,16 @@ GOOGLE_DRIVE_FOLDER_ID=your_destination_folder_id
 GOOGLE_DRIVE_MAKE_PUBLIC=false
 ```
 
-Then select **Google Drive** in the UI. Uploaded input files and generated
-outputs use `gdrive://FILE_ID` internally.
+Uploaded inputs and outputs use `gdrive://FILE_ID` internally.
 
 Notes:
 
-- `drive.file` allows the application to manage files it creates or that the
-  user explicitly opens with the app.
+- Easy connect uses the `drive.file` scope.
 - Keep `GOOGLE_DRIVE_MAKE_PUBLIC=false` for private files.
-- Workers need the same Google OAuth credentials to download input files and
-  upload results.
-- Google Drive is excellent for inexpensive persistence, but R2 can have lower
-  operational friction for distributed GPU workers and direct media delivery.
+- Workers that download Drive inputs need the same credentials (or use inline/
+  local storage with the controller materializing files).
+- Rclone’s shared client ID is being retired during 2026; for long-lived
+  production, create your own client ID.
 
 ## 4. Configure Cloudflare R2 / S3
 
@@ -110,9 +133,7 @@ S3_PUBLIC_BASE_URL=https://media.example.com
 The same adapter works with AWS S3, MinIO, Backblaze B2 S3, and similar
 S3-compatible providers.
 
-## 5. Build the real VoxCPM2 GPU image
-
-The mock image is intentionally small. Build the real image:
+## 5. Build the VoxCPM2 GPU image
 
 ```bash
 docker build \
@@ -134,7 +155,6 @@ Local GPU test:
 ```bash
 docker run --rm --gpus all -p 8011:8011 \
   --env-file .env \
-  -e ENGINE_MODE=real \
   -e SALAD_QUEUE_WORKER_ENABLED=0 \
   YOUR_REGISTRY/voxcpm2-worker:latest
 ```
@@ -442,6 +462,18 @@ Cancel when finished:
 
 ## 10. Deploy to Vast.ai
 
+### Local VoxCPM2 vs Vast GPU
+
+Having VoxCPM2 installed on your machine does **not** let you “borrow only the
+GPU” from Vast without an instance. The model and CUDA work must run on the
+machine that has the GPU.
+
+| Goal | What to use |
+| --- | --- |
+| Use a GPU you already have locally | Compute → **Local FastAPI workers** (`VOX_WORKER_URL`) |
+| Use Vast’s GPU (fastest cloud setup) | Create **or reuse** a Vast instance with the prebuilt image, set `VAST_WORKER_URL`, compute → **Vast.ai** |
+| Skip rebuilding the model stack | Use `VOXCPM2_IMAGE` / GHCR image — do not install VoxCPM2 on your PC for Vast jobs |
+
 [Vast.ai](https://vast.ai/) is a GPU cloud marketplace with per-second billing.
 You search offers, create an instance from your worker image, then point the
 controller at the mapped HTTP URL with `compute_provider=custom`. See the
@@ -487,8 +519,9 @@ CUSTOM_WORKER_URL=http://65.x.x.x:33526
 
 ### 10.3 Point the controller at the instance
 
-In the web UI choose **Custom FastAPI URL** (same URL as `VAST_WORKER_URL`), or
-rely on `CUSTOM_WORKER_URL` in `.env`. Direct smoke test:
+In the web UI choose **Vast.ai GPU rental** (same URL as `VAST_WORKER_URL`).
+If an instance is already running, skip create and only paste that URL into
+Secrets. Direct smoke test:
 
 ```bash
 ./deploy/vast/submit-voxcpm2-inline.sh
@@ -584,7 +617,7 @@ curl http://localhost:8000/api/jobs/JOB_ID
 
 ## 14. Known limitations
 
-- The included local demo uses mock inference.
+- Local compose does not include GPU workers; use a cloud rental or a `.gpu` image.
 - WanGP's setting names differ across model families. Start with exported WanGP
   settings and pass additional keys through `advanced_settings`.
 - Google Drive links may require the signed-in Drive account unless files are

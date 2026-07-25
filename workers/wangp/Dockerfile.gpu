@@ -33,7 +33,6 @@ COPY workers/wangp/app /app/app
 RUN chmod +x /app/start.sh && mkdir -p /outputs /app/data/files
 ENV PYTHONPATH=/opt/Wan2GP:/app \
     PORT=8012 \
-    ENGINE_MODE=real \
     WANGP_ROOT=/opt/Wan2GP \
     WANGP_OUTPUT_DIR=/outputs \
     SALAD_QUEUE_WORKER_ENABLED=1 \
