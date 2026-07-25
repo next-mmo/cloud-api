@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 import tempfile
 from pathlib import Path
@@ -22,6 +23,7 @@ def get_model():
         with _model_lock:
             if _model is None:
                 from voxcpm import VoxCPM
+
                 _model = VoxCPM.from_pretrained(
                     os.getenv("MODEL_PATH", "openbmb/VoxCPM2"),
                     load_denoiser=os.getenv("LOAD_DENOISER", "false").lower() == "true",
@@ -76,6 +78,25 @@ def process(body: dict[str, Any]) -> dict[str, Any]:
             sf.write(output, wav, model.tts_model.sample_rate)
         else:
             make_mock_wav(output)
+
+        if storage_provider.lower() in {"inline", "base64"}:
+            audio_bytes = output.read_bytes()
+            max_inline_bytes = int(os.getenv("MAX_INLINE_AUDIO_BYTES", "7500000"))
+            if len(audio_bytes) > max_inline_bytes:
+                raise HTTPException(
+                    413,
+                    f"Inline audio is too large ({len(audio_bytes)} bytes); use Google Drive or R2",
+                )
+            return {
+                "job_id": job_id,
+                "status": "succeeded",
+                "kind": "tts",
+                "storage_provider": "inline",
+                "filename": output.name,
+                "mime_type": "audio/wav",
+                "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
+                "size_bytes": len(audio_bytes),
+            }
 
         stored = save_output(output, storage_provider, f"outputs/tts/{job_id}.wav")
         return {"job_id": job_id, "status": "succeeded", "kind": "tts", **stored}
