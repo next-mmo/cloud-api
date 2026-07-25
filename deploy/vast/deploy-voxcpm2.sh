@@ -7,11 +7,15 @@ source "${SCRIPT_DIR}/load-env.sh"
 require_env VAST_API_KEY
 
 INSTANCE_SRC="${1:-${SCRIPT_DIR}/instance-voxcpm2.json}"
+TEMPLATE_SRC="${SCRIPT_DIR}/instance-voxcpm2.json.template"
 if [[ ! -f "${INSTANCE_SRC}" ]]; then
-  echo "Missing ${INSTANCE_SRC}" >&2
-  echo "Copy and edit the instance template first:" >&2
-  echo "  cp deploy/vast/instance-voxcpm2.json.template deploy/vast/instance-voxcpm2.json" >&2
-  exit 1
+  if [[ -f "${TEMPLATE_SRC}" ]]; then
+    cp "${TEMPLATE_SRC}" "${INSTANCE_SRC}"
+    echo "Created ${INSTANCE_SRC} from template (image comes from VOXCPM2_IMAGE in .env)." >&2
+  else
+    echo "Missing ${INSTANCE_SRC}" >&2
+    exit 1
+  fi
 fi
 
 if [[ -z "${VAST_OFFER_ID:-}" ]]; then

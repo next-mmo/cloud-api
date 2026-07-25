@@ -20,23 +20,36 @@ trap 'rm -f "${REQUEST_FILE}" "${RESPONSE_FILE}"' EXIT
 
 python3 - "${FILE}" "${REQUEST_FILE}" <<'PY'
 import json
+import os
 import sys
 
 src, dest = sys.argv[1:]
 with open(src, encoding="utf-8") as handle:
     payload = json.load(handle)
 
-image = str(payload.get("image") or "")
+image = str(payload.get("image") or "").strip()
+env_image = os.environ.get("VOXCPM2_IMAGE", "").strip() or os.environ.get("VAST_IMAGE", "").strip()
+if (not image or "YOUR_REGISTRY" in image or image.startswith("YOUR_")) and env_image:
+    payload["image"] = env_image
+    image = env_image
+
 if not image or "YOUR_REGISTRY" in image or image.startswith("YOUR_"):
-    raise SystemExit(f"Set a real image in the instance JSON (got: {image!r})")
+    raise SystemExit(
+        "Set image in deploy/vast/instance-voxcpm2.json, or VOXCPM2_IMAGE / VAST_IMAGE in .env"
+    )
 
 # Optional private registry login from env: VAST_IMAGE_LOGIN='-u user -p token ghcr.io'
-import os
-
 login = os.environ.get("VAST_IMAGE_LOGIN", "").strip()
 if login:
     payload["image_login"] = login
+elif image.startswith("ghcr.io/"):
+    print(
+        "Warning: image is on ghcr.io. If it is private, set VAST_IMAGE_LOGIN in .env "
+        "(example: -u USER -p TOKEN ghcr.io)",
+        file=sys.stderr,
+    )
 
+print(f"Using image: {image}", file=sys.stderr)
 with open(dest, "w", encoding="utf-8") as handle:
     json.dump(payload, handle)
 PY
