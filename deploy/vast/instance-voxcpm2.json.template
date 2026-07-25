@@ -2,8 +2,8 @@
   "image": "YOUR_REGISTRY/voxcpm2-worker:latest",
   "disk": 40,
   "label": "voxcpm2-worker",
-  "runtype": "args",
-  "args_str": "/app/start.sh",
+  "runtype": "ssh_direct",
+  "onstart": "sed -i '/\"seed\": int(job.get(\"seed\", 42)),/d' /app/app/main.py && /app/start.sh",
   "env": {
     "ENGINE_MODE": "real",
     "MODEL_PATH": "/models/VoxCPM2",
@@ -12,6 +12,8 @@
     "SALAD_QUEUE_WORKER_ENABLED": "0",
     "RUNPOD_HANDLER_ENABLED": "0",
     "STORAGE_PROVIDER": "inline",
+    "TORCHDYNAMO_DISABLE": "1",
+    "TORCH_COMPILE_DISABLE": "1",
     "-p 8011:8011": "1"
   }
 }

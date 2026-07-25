@@ -53,15 +53,31 @@ if not isinstance(inst, dict):
     print("Status: not_found")
     raise SystemExit(2)
 
-status = inst.get("actual_status") or inst.get("status") or "unknown"
+# actual_status is null while Vast is still provisioning (not a failure).
+raw_status = inst.get("actual_status")
+if raw_status is None:
+    cur = inst.get("cur_state") or inst.get("intended_status") or "provisioning"
+    print(f"Status: provisioning (cur_state={cur})")
+    raise SystemExit(2)
+
+status = str(raw_status)
 print(f"Status: {status}")
 
-bad = {"exited", "unknown", "offline", "error", "failed"}
-if str(status).lower() in bad:
+status_l = status.lower()
+bad = {"exited", "offline", "error", "failed"}
+pull_fail_markers = (
+    "unauthorized",
+    "denied",
+    "error response from daemon",
+    "manifest unknown",
+    "not found",
+    "pull access denied",
+)
+if status_l in bad or any(marker in status_l for marker in pull_fail_markers):
     print(json.dumps(inst, indent=2, ensure_ascii=False)[:4000])
     raise SystemExit(3)
 
-if str(status).lower() != "running":
+if status_l != "running":
     raise SystemExit(2)
 
 ports = inst.get("ports") or {}

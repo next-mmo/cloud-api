@@ -42,11 +42,11 @@ if not image or "YOUR_REGISTRY" in image or image.startswith("YOUR_"):
 login = os.environ.get("VAST_IMAGE_LOGIN", "").strip()
 if login:
     payload["image_login"] = login
-elif image.startswith("ghcr.io/"):
-    print(
-        "Warning: image is on ghcr.io. If it is private, set VAST_IMAGE_LOGIN in .env "
-        "(example: -u USER -p TOKEN ghcr.io)",
-        file=sys.stderr,
+elif image.startswith(("ghcr.io/", "gcr.io/", "registry.gitlab.com/")):
+    raise SystemExit(
+        "Private registry image requires VAST_IMAGE_LOGIN in .env.\n"
+        "For GHCR create a classic PAT with read:packages, then set:\n"
+        'VAST_IMAGE_LOGIN="-u YOUR_GITHUB_USER -p ghp_xxx ghcr.io"'
     )
 
 print(f"Using image: {image}", file=sys.stderr)

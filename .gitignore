@@ -9,6 +9,8 @@ __pycache__/
 data/
 *.db
 .DS_Store
+*.wav
+tts-*.wav
 
 deploy/salad/container-voxcpm2.json
 deploy/salad/container-wangp.json
