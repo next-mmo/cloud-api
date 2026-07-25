@@ -13,8 +13,75 @@ require_env \
 IMAGE="${VOXCPM2_IMAGE:-ghcr.io/next-mmo/cloud-api-voxcpm2:inline-demo}"
 GROUP_NAME="${SALAD_VOX_GROUP:-voxcpm2-inline-demo}"
 QUEUE_NAME="${SALAD_VOX_QUEUE:-voxcpm2-jobs}"
+PRIORITY="${SALAD_PRIORITY:-batch}"
+MAX_PRICE="${SALAD_MAX_PRICE_PER_HOUR_USD:-}"
 CONFIG_FILE="$(mktemp)"
 trap 'rm -f "${CONFIG_FILE}"' EXIT
+
+case "${PRIORITY}" in
+  high|medium|low|batch) ;;
+  *)
+    echo "SALAD_PRIORITY must be high, medium, low, or batch" >&2
+    exit 1
+    ;;
+esac
+
+python3 - <<'PY'
+import json
+import os
+import sys
+import urllib.request
+
+api_key = os.environ["SALAD_API_KEY"]
+org = os.environ["SALAD_ORGANIZATION"]
+gpu_id = os.environ["SALAD_GPU_CLASS"]
+priority = os.getenv("SALAD_PRIORITY", "batch").lower()
+max_price_raw = os.getenv("SALAD_MAX_PRICE_PER_HOUR_USD", "").strip()
+url = f"https://api.salad.com/api/public/organizations/{org}/gpu-classes"
+request = urllib.request.Request(
+    url,
+    headers={
+        "Salad-Api-Key": api_key,
+        "Accept": "application/json",
+    },
+)
+
+with urllib.request.urlopen(request, timeout=60) as response:
+    payload = json.load(response)
+
+gpu = next((item for item in payload.get("items", []) if item.get("id") == gpu_id), None)
+if gpu is None:
+    raise SystemExit(f"GPU class {gpu_id} was not found for organization {org}")
+
+prices = gpu.get("prices") or []
+price_by_priority = {}
+for entry in prices:
+    level = str(entry.get("priority") or entry.get("name") or "").lower()
+    value = entry.get("price")
+    if level and value is not None:
+        price_by_priority[level] = float(value)
+
+if priority not in price_by_priority:
+    print(json.dumps(gpu, indent=2), file=sys.stderr)
+    raise SystemExit(
+        f"Could not find {priority!r} pricing for GPU {gpu.get('name', gpu_id)}"
+    )
+
+hourly_price = price_by_priority[priority]
+print(
+    f"Selected GPU: {gpu.get('name', gpu_id)} | priority: {priority} | "
+    f"price: US${hourly_price:.4f}/hour"
+)
+
+if max_price_raw:
+    max_price = float(max_price_raw)
+    if hourly_price > max_price:
+        raise SystemExit(
+            f"Deployment blocked: live price US${hourly_price:.4f}/hour exceeds "
+            f"SALAD_MAX_PRICE_PER_HOUR_USD=US${max_price:.4f}"
+        )
+    print(f"Price guard passed: maximum US${max_price:.4f}/hour")
+PY
 
 python3 - "${CONFIG_FILE}" <<'PY'
 import json
@@ -26,6 +93,7 @@ config = {
     "display_name": "VoxCPM2 Inline Demo",
     "autostart_policy": True,
     "restart_policy": "always",
+    "priority": os.getenv("SALAD_PRIORITY", "batch"),
     "container": {
         "image": os.getenv(
             "VOXCPM2_IMAGE",
@@ -91,4 +159,4 @@ curl --fail-with-body -sS \
   --data-binary "@${CONFIG_FILE}"
 
 echo
-echo "Deployed ${GROUP_NAME} from ${IMAGE} using queue ${QUEUE_NAME}."
+echo "Deployed ${GROUP_NAME} from ${IMAGE} using queue ${QUEUE_NAME} at ${PRIORITY} priority."
