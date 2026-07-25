@@ -1,0 +1,19 @@
+{
+  "image": "YOUR_REGISTRY/wangp-worker:latest",
+  "disk": 80,
+  "label": "wangp-worker",
+  "runtype": "args",
+  "args_str": "/app/start.sh",
+  "env": {
+    "ENGINE_MODE": "real",
+    "WANGP_ROOT": "/opt/Wan2GP",
+    "WANGP_OUTPUT_DIR": "/outputs",
+    "WANGP_CLI_ARGS": "--attention,sdpa,--profile,4",
+    "PRELOAD_MODEL": "0",
+    "PORT": "8012",
+    "SALAD_QUEUE_WORKER_ENABLED": "0",
+    "RUNPOD_HANDLER_ENABLED": "0",
+    "STORAGE_PROVIDER": "inline",
+    "-p 8012:8012": "1"
+  }
+}

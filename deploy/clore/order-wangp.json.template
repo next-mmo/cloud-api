@@ -1,0 +1,23 @@
+{
+  "renting_server": 0,
+  "type": "on-demand",
+  "currency": "CLORE-Blockchain",
+  "image": "YOUR_DOCKERHUB_USER/wangp-worker:latest",
+  "ports": {
+    "8012": "http",
+    "22": "tcp"
+  },
+  "env": {
+    "ENGINE_MODE": "real",
+    "WANGP_ROOT": "/opt/Wan2GP",
+    "WANGP_OUTPUT_DIR": "/outputs",
+    "WANGP_CLI_ARGS": "--attention,sdpa,--profile,4",
+    "PRELOAD_MODEL": "0",
+    "PORT": "8012",
+    "SALAD_QUEUE_WORKER_ENABLED": "0",
+    "RUNPOD_HANDLER_ENABLED": "0",
+    "STORAGE_PROVIDER": "inline",
+    "NVIDIA_VISIBLE_DEVICES": "all"
+  },
+  "ssh_password": "ChangeMeSecure123"
+}

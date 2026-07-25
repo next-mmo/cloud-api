@@ -1,0 +1,12 @@
+{
+  "name": "voxcpm2-jobs",
+  "templateId": "REPLACE_WITH_TEMPLATE_ID",
+  "computeType": "GPU",
+  "gpuTypeIds": ["NVIDIA GeForce RTX 4090", "NVIDIA GeForce RTX 3090"],
+  "workersMin": 0,
+  "workersMax": 2,
+  "idleTimeout": 10,
+  "scalerType": "QUEUE_DELAY",
+  "scalerValue": 4,
+  "executionTimeoutMs": 600000
+}

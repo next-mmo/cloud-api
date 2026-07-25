@@ -4,7 +4,7 @@ A runnable starter for connecting a local or hosted React web app to:
 
 - **WanGP** video generation
 - **VoxCPM2** multilingual TTS and voice cloning
-- **Local FastAPI**, **SaladCloud Job Queues**, **RunPod Serverless**, or a custom FastAPI worker
+- **Local FastAPI**, **SaladCloud Job Queues**, **RunPod Serverless**, **[Clore.ai](https://clore.ai/) / [Vast.ai](https://vast.ai/) GPU rentals**, or a custom FastAPI worker
 - **Google Drive**, **Cloudflare R2 / S3-compatible storage**, or local disk
 
 The included Docker Compose setup runs immediately in **mock mode**. Real GPU
@@ -22,7 +22,10 @@ services/controller/      Public CPU FastAPI API and job database
 workers/voxcpm2/          VoxCPM2 FastAPI/Salad worker
 workers/wangp/            WanGP FastAPI/Salad worker
 packages/python_common/   Google Drive, R2/S3, and local storage adapters
-deploy/salad/             Queue and container deployment templates
+deploy/salad/             SaladCloud queue and container templates
+deploy/runpod/            RunPod Serverless template and endpoint scripts
+deploy/clore/             Clore.ai marketplace rental scripts
+deploy/vast/              Vast.ai GPU cloud instance scripts
 docs/                     Architecture notes
 ```
 
@@ -55,7 +58,7 @@ The web UI lets each user choose and save:
 - `local`: direct calls to `VOX_WORKER_URL` and `WAN_WORKER_URL`
 - `salad`: submits to two Salad Job Queues
 - `runpod`: submits to configured RunPod Serverless endpoints
-- `custom`: calls a user-selected FastAPI worker URL
+- `custom`: calls a user-selected FastAPI worker URL (also used for Clore.ai / Vast.ai rentals)
 
 ### Storage provider
 
@@ -64,7 +67,7 @@ The web UI lets each user choose and save:
 - `google_drive`
 
 Only provider names and the optional custom URL are saved in the browser. Never
-put Salad, RunPod, Google, or S3 credentials in Vite environment variables.
+put Salad, RunPod, Clore, Vast, Google, or S3 credentials in Vite environment variables.
 
 ## 3. Use your Google Drive storage
 
@@ -335,7 +338,173 @@ returns JSON like:
 Do not return media bytes through the queue response. Upload the artifact to
 Drive/R2 and return a small JSON result.
 
-## 8. Host the web and controller
+## 8. Deploy to RunPod Serverless
+
+The controller already talks to RunPod via `https://api.runpod.ai/v2/{endpoint}/run`.
+GPU images include a small RunPod handler that forwards queue jobs to the local
+FastAPI `/process` endpoint when `RUNPOD_HANDLER_ENABLED=1`.
+
+### 8.1 Prepare environment
+
+```bash
+export RUNPOD_API_KEY='...'
+```
+
+### 8.2 Create templates and endpoints
+
+```bash
+cp deploy/runpod/template-voxcpm2.json.template deploy/runpod/template-voxcpm2.json
+cp deploy/runpod/endpoint-voxcpm2.json.template deploy/runpod/endpoint-voxcpm2.json
+# edit imageName, env secrets, and gpuTypeIds
+chmod +x deploy/runpod/*.sh
+./deploy/runpod/deploy-voxcpm2.sh
+```
+
+Or create them separately:
+
+```bash
+./deploy/runpod/create-template.sh deploy/runpod/template-voxcpm2.json
+# paste the returned template id into endpoint-voxcpm2.json
+./deploy/runpod/create-endpoint.sh deploy/runpod/endpoint-voxcpm2.json
+```
+
+Repeat with the WanGP templates when needed. Put the endpoint ids in `.env`:
+
+```env
+RUNPOD_API_KEY=...
+RUNPOD_VOX_ENDPOINT_ID=...
+RUNPOD_WAN_ENDPOINT_ID=...
+```
+
+### 8.3 Smoke-test a job
+
+```bash
+./deploy/runpod/submit-voxcpm2-inline.sh
+```
+
+Select **RunPod Serverless** in the web UI. Private registry images need a
+container-registry auth configured in the RunPod console and attached to the
+template (`containerRegistryAuthId`).
+
+## 9. Deploy to Clore.ai
+
+[Clore.ai](https://clore.ai/) is a GPU marketplace. You rent a server, pull your
+Docker image, and expose the FastAPI worker port. The starter uses
+`compute_provider=custom` with the rented HTTP URL. See the
+[Clore API docs](https://docs.clore.ai/dev/reference/api-reference).
+
+Clore expects a Docker Hub (or Clore-accepted) image name in the order payload.
+
+### 9.1 Prepare environment
+
+```bash
+export CLORE_API_KEY='...'
+```
+
+### 9.2 Find a server and create an order
+
+```bash
+cp deploy/clore/order-voxcpm2.json.template deploy/clore/order-voxcpm2.json
+# set image, env secrets, currency, and ssh_password
+chmod +x deploy/clore/*.sh
+./deploy/clore/list-marketplace.sh 'RTX 4090'
+export CLORE_SERVER_ID='12345'
+./deploy/clore/deploy-voxcpm2.sh
+```
+
+`wait-order.sh` prints the mapped worker URL, for example:
+
+```bash
+export CLORE_WORKER_URL='http://node123.clore.ai:40088'
+```
+
+### 9.3 Point the controller at the rental
+
+```env
+CUSTOM_WORKER_URL=http://node123.clore.ai:40088
+```
+
+In the web UI choose **Custom FastAPI URL** and paste the same URL, or set
+`CUSTOM_WORKER_URL` server-side. Direct smoke test:
+
+```bash
+./deploy/clore/submit-voxcpm2-inline.sh
+```
+
+Cancel when finished:
+
+```bash
+./deploy/clore/cancel-order.sh ORDER_ID
+```
+
+`create_order` is rate-limited (about one call every five seconds). Keep
+`CLORE_API_KEY` server-side only.
+
+## 10. Deploy to Vast.ai
+
+[Vast.ai](https://vast.ai/) is a GPU cloud marketplace with per-second billing.
+You search offers, create an instance from your worker image, then point the
+controller at the mapped HTTP URL with `compute_provider=custom`. See the
+[Vast API hello world](https://docs.vast.ai/api-reference/hello-world).
+
+### 10.1 Prepare environment
+
+Put keys in `.env` (scripts load it automatically). Get an API key from
+https://cloud.vast.ai/manage-keys/
+
+```env
+VAST_API_KEY=...
+# optional private pull, e.g. -u USER -p TOKEN ghcr.io
+VAST_IMAGE_LOGIN=
+```
+
+### 10.2 Find an offer and create an instance
+
+```bash
+cp deploy/vast/instance-voxcpm2.json.template deploy/vast/instance-voxcpm2.json
+# set image to your public or private worker tag
+chmod +x deploy/vast/*.sh
+./deploy/vast/list-offers.sh 'RTX 4090'
+```
+
+Add the chosen offer id to `.env`, then deploy:
+
+```env
+VAST_OFFER_ID=12345678
+```
+
+```bash
+./deploy/vast/deploy-voxcpm2.sh
+```
+
+`wait-instance.sh` prints values to add to `.env`, for example:
+
+```env
+VAST_WORKER_URL=http://65.x.x.x:33526
+VAST_INSTANCE_ID=12345678
+CUSTOM_WORKER_URL=http://65.x.x.x:33526
+```
+
+### 10.3 Point the controller at the instance
+
+In the web UI choose **Custom FastAPI URL** (same URL as `VAST_WORKER_URL`), or
+rely on `CUSTOM_WORKER_URL` in `.env`. Direct smoke test:
+
+```bash
+./deploy/vast/submit-voxcpm2-inline.sh
+```
+
+Destroy when finished (uses `VAST_INSTANCE_ID` from `.env`):
+
+```bash
+./deploy/vast/destroy-instance.sh
+```
+
+Templates use `runtype: "args"` so the image keeps `/app/start.sh`, and map
+container port `8011` for VoxCPM2 (`8012` for WanGP). Keep `VAST_API_KEY`
+server-side only.
+
+## 11. Host the web and controller
 
 The web app is static and can be deployed to Cloudflare Pages, Vercel, Netlify,
 Nginx, or your existing host.
@@ -361,7 +530,7 @@ Use HTTPS and authentication before exposing it publicly. The starter focuses
 on provider orchestration; add your existing login, quotas, billing, and abuse
 controls before production.
 
-## 9. API examples
+## 12. API examples
 
 TTS:
 
@@ -400,7 +569,7 @@ Poll:
 curl http://localhost:8000/api/jobs/JOB_ID
 ```
 
-## 10. Production checklist
+## 13. Production checklist
 
 - Add JWT/session authentication.
 - Add per-user ownership to jobs and storage keys.
@@ -413,14 +582,16 @@ curl http://localhost:8000/api/jobs/JOB_ID
 - Pin Docker base images, Python packages, WanGP commit, and model revisions.
 - Scan images and keep secrets in a secret manager.
 
-## 11. Known limitations
+## 14. Known limitations
 
 - The included local demo uses mock inference.
 - WanGP's setting names differ across model families. Start with exported WanGP
   settings and pass additional keys through `advanced_settings`.
 - Google Drive links may require the signed-in Drive account unless files are
   made public.
-- Salad instances are ephemeral; generated files must be uploaded before the
-  worker returns.
+- Salad and RunPod workers are ephemeral; generated files must be uploaded before
+  the worker returns.
+- Clore rentals stay billed until you cancel the order.
+- Vast.ai instances stay billed until you destroy them (`destroy-instance.sh`).
 - Very long video jobs need checkpointing because distributed GPU nodes can be
   interrupted.

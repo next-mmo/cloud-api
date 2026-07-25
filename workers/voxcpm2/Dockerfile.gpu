@@ -43,7 +43,10 @@ RUN curl -fsSL \
     | tar -xz -C /usr/local/bin && \
     chmod +x /usr/local/bin/salad-http-job-queue-worker
 
+RUN python3 -m pip install --no-cache-dir 'runpod>=1.7,<2'
+
 COPY workers/common/worker_base.py /app/worker_base.py
+COPY workers/common/runpod_handler.py /app/runpod_handler.py
 COPY workers/common/start.sh /app/start.sh
 COPY workers/voxcpm2/app /app/app
 RUN chmod +x /app/start.sh && mkdir -p /app/data/files /outputs

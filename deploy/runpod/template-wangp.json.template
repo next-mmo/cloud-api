@@ -1,0 +1,18 @@
+{
+  "name": "wangp-worker-serverless",
+  "imageName": "YOUR_REGISTRY/wangp-worker:latest",
+  "isServerless": true,
+  "containerDiskInGb": 80,
+  "dockerStartCmd": [],
+  "env": {
+    "ENGINE_MODE": "real",
+    "WANGP_ROOT": "/opt/Wan2GP",
+    "WANGP_OUTPUT_DIR": "/outputs",
+    "WANGP_CLI_ARGS": "--attention,sdpa,--profile,4",
+    "PRELOAD_MODEL": "0",
+    "PORT": "8012",
+    "SALAD_QUEUE_WORKER_ENABLED": "0",
+    "RUNPOD_HANDLER_ENABLED": "1",
+    "STORAGE_PROVIDER": "inline"
+  }
+}

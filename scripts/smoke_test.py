@@ -15,6 +15,10 @@ required = [
     root / "workers/wangp/Dockerfile.gpu",
     root / "workers/voxcpm2/Dockerfile.gpu",
     root / "deploy/salad/create-queues.sh",
+    root / "deploy/runpod/deploy-voxcpm2.sh",
+    root / "deploy/clore/deploy-voxcpm2.sh",
+    root / "deploy/vast/deploy-voxcpm2.sh",
+    root / "workers/common/runpod_handler.py",
 ]
 missing = [str(path.relative_to(root)) for path in required if not path.exists()]
 if missing:

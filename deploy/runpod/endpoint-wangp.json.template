@@ -1,0 +1,12 @@
+{
+  "name": "wangp-jobs",
+  "templateId": "REPLACE_WITH_TEMPLATE_ID",
+  "computeType": "GPU",
+  "gpuTypeIds": ["NVIDIA GeForce RTX 4090", "NVIDIA A40"],
+  "workersMin": 0,
+  "workersMax": 1,
+  "idleTimeout": 10,
+  "scalerType": "QUEUE_DELAY",
+  "scalerValue": 4,
+  "executionTimeoutMs": 1800000
+}

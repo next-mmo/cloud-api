@@ -1,0 +1,21 @@
+{
+  "renting_server": 0,
+  "type": "on-demand",
+  "currency": "CLORE-Blockchain",
+  "image": "YOUR_DOCKERHUB_USER/voxcpm2-worker:latest",
+  "ports": {
+    "8011": "http",
+    "22": "tcp"
+  },
+  "env": {
+    "ENGINE_MODE": "real",
+    "MODEL_PATH": "/models/VoxCPM2",
+    "PRELOAD_MODEL": "0",
+    "PORT": "8011",
+    "SALAD_QUEUE_WORKER_ENABLED": "0",
+    "RUNPOD_HANDLER_ENABLED": "0",
+    "STORAGE_PROVIDER": "inline",
+    "NVIDIA_VISIBLE_DEVICES": "all"
+  },
+  "ssh_password": "ChangeMeSecure123"
+}

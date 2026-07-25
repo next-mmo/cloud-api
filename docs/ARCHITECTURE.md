@@ -8,12 +8,19 @@ FastAPI controller (CPU)
     |-- provider=local/custom --> direct FastAPI worker
     |-- provider=salad -------> Salad Job Queue API
     |-- provider=runpod ------> RunPod Serverless API
+    |-- provider=custom ------> Clore.ai / Vast.ai rented worker HTTP URL
     |
     +--> local / R2-S3 / Google Drive storage
 
 GPU workers
     |-- VoxCPM2 worker --> WAV
     +-- WanGP worker ---> MP4
+
+Deploy helpers
+    |-- deploy/salad/  --> Salad queues + container groups
+    |-- deploy/runpod/ --> RunPod serverless templates + endpoints
+    |-- deploy/clore/  --> Clore.ai marketplace rentals
+    +-- deploy/vast/   --> Vast.ai GPU cloud instances
 ```
 
 The browser stores only the selected provider names and custom public URL in

@@ -12,3 +12,11 @@ data/
 
 deploy/salad/container-voxcpm2.json
 deploy/salad/container-wangp.json
+deploy/runpod/template-voxcpm2.json
+deploy/runpod/template-wangp.json
+deploy/runpod/endpoint-voxcpm2.json
+deploy/runpod/endpoint-wangp.json
+deploy/clore/order-voxcpm2.json
+deploy/clore/order-wangp.json
+deploy/vast/instance-voxcpm2.json
+deploy/vast/instance-wangp.json

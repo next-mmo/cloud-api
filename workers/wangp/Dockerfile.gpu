@@ -24,7 +24,10 @@ RUN python3 -m pip install --no-cache-dir -r /tmp/common.txt
 RUN curl -fsSL https://github.com/SaladTechnologies/salad-cloud-job-queue-worker/releases/download/v0.5.0/salad-http-job-queue-worker_x86_64.tar.gz | \
     tar -xz -C /usr/local/bin && chmod +x /usr/local/bin/salad-http-job-queue-worker
 WORKDIR /app
+RUN python3 -m pip install --no-cache-dir 'runpod>=1.7,<2'
+
 COPY workers/common/worker_base.py /app/worker_base.py
+COPY workers/common/runpod_handler.py /app/runpod_handler.py
 COPY workers/common/start.sh /app/start.sh
 COPY workers/wangp/app /app/app
 RUN chmod +x /app/start.sh && mkdir -p /outputs /app/data/files
