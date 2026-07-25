@@ -1,0 +1,63 @@
+services:
+  controller:
+    build:
+      context: .
+      dockerfile: services/controller/Dockerfile
+    env_file: .env
+    environment:
+      VOX_WORKER_URL: http://voxcpm2-worker:8011
+      WAN_WORKER_URL: http://wangp-worker:8012
+      LOCAL_STORAGE_DIR: /shared/files
+      DATABASE_URL: sqlite:////app/data/app.db
+      PUBLIC_BASE_URL: http://localhost:8000
+    volumes:
+      - ./data/controller:/app/data
+      - ./data/shared:/shared
+    ports:
+      - "8000:8000"
+    depends_on:
+      - voxcpm2-worker
+      - wangp-worker
+
+  voxcpm2-worker:
+    build:
+      context: .
+      dockerfile: workers/voxcpm2/Dockerfile
+    env_file: .env
+    environment:
+      ENGINE_MODE: mock
+      PORT: 8011
+      LOCAL_STORAGE_DIR: /shared/files
+      PUBLIC_BASE_URL: http://localhost:8000
+    volumes:
+      - ./data/voxcpm2:/app/data
+      - ./data/shared:/shared
+    ports:
+      - "8011:8011"
+
+  wangp-worker:
+    build:
+      context: .
+      dockerfile: workers/wangp/Dockerfile
+    env_file: .env
+    environment:
+      ENGINE_MODE: mock
+      PORT: 8012
+      LOCAL_STORAGE_DIR: /shared/files
+      PUBLIC_BASE_URL: http://localhost:8000
+    volumes:
+      - ./data/wangp:/app/data
+      - ./data/shared:/shared
+    ports:
+      - "8012:8012"
+
+  web:
+    build:
+      context: apps/web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:80"
+    depends_on:
+      - controller

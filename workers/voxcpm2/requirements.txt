@@ -1,0 +1,2 @@
+-r ../common/requirements.txt
+# Real GPU image installs PyTorch and VoxCPM separately.

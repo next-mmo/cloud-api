@@ -1,0 +1,20 @@
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+ARG DEBIAN_FRONTEND=noninteractive
+ARG BAKE_MODEL=0
+ARG MODEL_ID=openbmb/VoxCPM2
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip python3-dev ffmpeg git curl ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY packages/python_common /opt/python_common
+COPY workers/common/requirements.txt /tmp/common.txt
+RUN python3 -m pip install --no-cache-dir --upgrade pip && \
+    python3 -m pip install --no-cache-dir torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124 && \
+    python3 -m pip install --no-cache-dir -r /tmp/common.txt voxcpm huggingface_hub
+RUN if [ "$BAKE_MODEL" = "1" ]; then python3 -c "from huggingface_hub import snapshot_download; snapshot_download('${MODEL_ID}', local_dir='/models/VoxCPM2')"; fi
+RUN curl -fsSL https://github.com/SaladTechnologies/salad-cloud-job-queue-worker/releases/download/v0.5.0/salad-http-job-queue-worker_x86_64.tar.gz | tar -xz -C /usr/local/bin && chmod +x /usr/local/bin/salad-http-job-queue-worker
+COPY workers/common/worker_base.py /app/worker_base.py
+COPY workers/common/start.sh /app/start.sh
+COPY workers/voxcpm2/app /app/app
+RUN chmod +x /app/start.sh && mkdir -p /app/data/files /outputs
+ENV PORT=8011 ENGINE_MODE=real MODEL_PATH=/models/VoxCPM2 SALAD_QUEUE_WORKER_ENABLED=1
+EXPOSE 8011
+CMD ["/app/start.sh"]

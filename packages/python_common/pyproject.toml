@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nd-gpu-common"
+version = "0.1.0"
+description = "Shared storage and job helpers"
+requires-python = ">=3.10"
+dependencies = [
+  "boto3>=1.35,<2",
+  "google-api-python-client>=2.160,<3",
+  "google-auth>=2.38,<3",
+  "google-auth-httplib2>=0.2,<1"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nd_gpu_common*"]

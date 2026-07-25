@@ -1,0 +1,60 @@
+{
+  "name": "voxcpm2-worker",
+  "display_name": "VoxCPM2 Worker",
+  "autostart_policy": true,
+  "restart_policy": "always",
+  "container": {
+    "image": "YOUR_REGISTRY/voxcpm2-worker:latest",
+    "image_caching": true,
+    "resources": {
+      "cpu": 4,
+      "memory": 16384,
+      "gpu_classes": ["REPLACE_WITH_GPU_CLASS_UUID"]
+    },
+    "environment_variables": {
+      "ENGINE_MODE": "real",
+      "MODEL_PATH": "/models/VoxCPM2",
+      "PRELOAD_MODEL": "0",
+      "PORT": "8011",
+      "SALAD_QUEUE_WORKER_ENABLED": "1",
+      "SALAD_QUEUE_WORKER_LOG_LEVEL": "info",
+      "STORAGE_PROVIDER": "google_drive",
+      "GOOGLE_DRIVE_CLIENT_ID": "REPLACE_ME",
+      "GOOGLE_DRIVE_CLIENT_SECRET": "REPLACE_ME",
+      "GOOGLE_DRIVE_REFRESH_TOKEN": "REPLACE_ME",
+      "GOOGLE_DRIVE_FOLDER_ID": "REPLACE_ME",
+      "GOOGLE_DRIVE_MAKE_PUBLIC": "false"
+    }
+  },
+  "replicas": 0,
+  "country_codes": ["us", "ca"],
+  "startup_probe": {
+    "http": {"path": "/health", "port": 8011},
+    "initial_delay_seconds": 15,
+    "period_seconds": 10,
+    "timeout_seconds": 5,
+    "failure_threshold": 30,
+    "success_threshold": 1
+  },
+  "readiness_probe": {
+    "http": {"path": "/ready", "port": 8011},
+    "initial_delay_seconds": 5,
+    "period_seconds": 15,
+    "timeout_seconds": 10,
+    "failure_threshold": 6,
+    "success_threshold": 1
+  },
+  "queue_connection": {
+    "path": "/process",
+    "port": 8011,
+    "queue_name": "voxcpm2-jobs"
+  },
+  "queue_autoscaler": {
+    "min_replicas": 0,
+    "max_replicas": 2,
+    "desired_queue_length": 1,
+    "polling_period": 30,
+    "max_upscale_per_minute": 1,
+    "max_downscale_per_minute": 1
+  }
+}

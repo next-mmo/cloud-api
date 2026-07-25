@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+__pycache__/
+*.py[cod]
+.venv/
+data/
+*.db
+.DS_Store
+
+deploy/salad/container-voxcpm2.json
+deploy/salad/container-wangp.json
